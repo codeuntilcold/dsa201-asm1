@@ -45,6 +45,7 @@ protected:
     int nFragPtr() const;           // Number of pointers
     bool full() const;              // All fragments are full
     bool full_plus_one() const;     // Last fragment is last node
+    int resize_by_one(bool up = true);
 
 public:
     FragmentLinkedList(int fragmentMaxSize = 5)
@@ -167,10 +168,27 @@ bool FragmentLinkedList<T>::full_plus_one() const
 }
 
 template <class T>
+int FragmentLinkedList<T>::resize_by_one(bool up)
+{
+    int new_size = nFragPtr() + ((up) ? 1 : -1);
+
+    Node** temp = new Node* [new_size];
+    for (int i = 0; i < new_size; i++) {
+        temp[i] = fragmentPointers[i];
+    }
+
+    if (up) { temp[new_size - 1] = NULL; }
+
+    delete[] fragmentPointers;
+    fragmentPointers = temp;
+    return new_size;
+}
+
+template <class T>
 FragmentLinkedList<T>::~FragmentLinkedList()
 {
     clear();
-    if (fragmentPointers) { delete[] this->fragmentPointers; }
+    delete[] this->fragmentPointers;
 }
 
 template <class T>
@@ -189,24 +207,13 @@ void    FragmentLinkedList<T>::add(const T& element)
     }
     else
     {
-        // Make room and move data to new array
-        int sizeofNewArray = nFragPtr() + 1;
-
-        Node** temp = new Node* [sizeofNewArray];
-        for (int i = 0; i < sizeofNewArray - 1; i++) {
-            temp[i] = this->fragmentPointers[i];
-        }
-        delete[] this->fragmentPointers;
-
-        this->fragmentPointers = temp;
-
-        // Add new node
-        Node* & newFrag     =   this->fragmentPointers[sizeofNewArray - 2];
-        Node* & tail        =   this->fragmentPointers[sizeofNewArray - 1];
-        newFrag->next = new Node(element, NULL, newFrag);
+        int sizeofNewArray  = resize_by_one();
+        Node* & new_frag    = fragmentPointers[sizeofNewArray - 2];
+        Node* & new_tail    = fragmentPointers[sizeofNewArray - 1];
         
-        newFrag = newFrag->next;
-        tail = newFrag;
+        new_frag->next = new Node(element, NULL, new_frag);
+        new_frag = new_frag->next;
+        new_tail = new_frag;
     }
     
     count++;
@@ -225,28 +232,32 @@ void    FragmentLinkedList<T>::add(int index, const T& element)
     if (count == 1 || index == count - 1) { return; }
 
     // Putting the added element to the appropriate position
+    int nFrag   = nFragPtr();
     int idx     = index / fragmentMaxSize;
     int step    = index % fragmentMaxSize;
-    Node* p             = fragmentPointers[idx];
-    Node* tail          = fragmentPointers[ nFragPtr() - 1 ];
-    for (int i = 0; i < step; i++) 
-    {
+    Node* p     = fragmentPointers[idx];
+    for (int i = 0; i < step; i++) {
         p = p->next;
     }
-    fragmentPointers[ nFragPtr() - 1 ] = tail->prev;
+
+    Node* tail = fragmentPointers[ nFrag - 1 ];
+
+    fragmentPointers[ nFrag - 1 ] = tail->prev;
     if (full_plus_one()) 
     {
-        fragmentPointers[ nFragPtr() - 2 ] = tail->prev;
+        fragmentPointers[ nFrag - 2 ] = tail->prev;
     }
     tail->prev->next    = NULL;
     tail->prev          = p->prev;
     tail->next          = p;
-    if (p->prev) { p->prev->next = tail; }
+    if (p->prev) { 
+        p->prev->next = tail; 
+    }
     p->prev             = tail; 
     
     // Change the fragment pointers
-    int beginMoving     = index / fragmentMaxSize + ( (index % fragmentMaxSize) ? 1 : 0 );
-    int stopMoving      = nFragPtr() - ( full_plus_one() ? 2 : 1 );
+    int beginMoving     = idx + ( step ? 1 : 0 );
+    int stopMoving      = nFrag - ( full_plus_one() ? 2 : 1 );
     for (int i = beginMoving; i < stopMoving; i++) 
     {
         fragmentPointers[i] = fragmentPointers[i]->prev;
@@ -282,43 +293,27 @@ T       FragmentLinkedList<T>::removeAt(int index)
         p = p->next;
     }
 
-    T temp = p->data;
-
-    if (full_plus_one())
-    {
-        int sizeofNewArray = nFragPtr() - 1;
-
-        Node** temp = new Node* [sizeofNewArray];
-        for (int i = 0; i < sizeofNewArray; i++) {
-            temp[i] = this->fragmentPointers[i];
-        }
-        delete[] this->fragmentPointers;
-        this->fragmentPointers = temp;
+    if (full_plus_one()) {
+        resize_by_one(false);
     }
 
-    int beginMoving     = index / fragmentMaxSize + ( (index % fragmentMaxSize) ? 1 : 0 );
-    int stopMoving      = nFragPtr() - ( (full_plus_one()) ? 2 : 1 );
+    int beginMoving     = idx + ( (step) ? 1 : 0 );
+    int stopMoving      = nFragPtr() - ( full_plus_one() ? 2 : 1 );
     for (int i = beginMoving; i < stopMoving; i++) 
     {
         fragmentPointers[i] = fragmentPointers[i]->next;
     }
     
-    if (p->prev) p->prev->next = p->next;
-    if (p->next) 
-    {
+    if (p->prev) 
+        p->prev->next = p->next;
+    if (p->next)
         p->next->prev = p->prev;
-    }
-    else
-    {
-        if (full_plus_one())
-            fragmentPointers[nFragPtr() - 2] = p->prev;
-        else
-            fragmentPointers[nFragPtr() - 1] = p->prev;
-    }
+    else 
+        fragmentPointers[stopMoving] = p->prev;
     
+    T temp = p->data;
     delete p;
     count--;
-
     return temp;
 }
 
@@ -326,7 +321,7 @@ template <class T>
 bool    FragmentLinkedList<T>::removeItem(const T& item)
 {
     int index = indexOf(item);
-    if (index >= 0) 
+    if (index > -1) 
     {
         removeAt(index);
         return true;
@@ -360,7 +355,6 @@ void    FragmentLinkedList<T>::clear()
         ptr = ptr->next;
         delete prev;
     }
-
     delete[] this->fragmentPointers;
     this->fragmentPointers = new Node* [2];
     this->fragmentPointers[0] = this->fragmentPointers[1] = NULL;
@@ -394,10 +388,10 @@ void    FragmentLinkedList<T>::set(int index, const T& element)
         throw std::out_of_range("The index is out of range");
     }
     
-    int fragIdx = index / this->fragmentMaxSize;
-    int step = index % this->fragmentMaxSize;
+    int idx     = index / this->fragmentMaxSize;
+    int step    = index % this->fragmentMaxSize;
 
-    Node* p = this->fragmentPointers[fragIdx];
+    Node* p = this->fragmentPointers[idx];
     for (int i = 0; i < step; i++) {
         p = p->next;
     }
@@ -414,12 +408,7 @@ int     FragmentLinkedList<T>::indexOf(const T& item)
         p = p->next;
         index++;
     }
-    if (p) {
-        return index;
-    }
-    else {
-        return -1;
-    }
+    return (p ? index : -1);
 }
 
 template <class T>
@@ -439,7 +428,11 @@ string FragmentLinkedList<T>::toString()
         ss << "]";
 
     // TODO
-    if (ptr) { ss << ptr->data; ptr = ptr->next; }
+    if (ptr) 
+    { 
+        ss << ptr->data; 
+        ptr = ptr->next; 
+    }
     while (ptr != NULL)
     {
         ss << ", " <<ptr->data;
@@ -487,14 +480,7 @@ template <class T>
 FragmentLinkedList<T>::Iterator::Iterator(FragmentLinkedList<T> *pList, bool begin)
 {
     this->pList = pList;
-    if (begin)
-    {
-        this->pNode = pList->fragmentPointers[0];
-    }
-    else
-    {
-        this->pNode = nullptr;
-    }
+    this->pNode = (begin) ? pList->fragmentPointers[0] : NULL;
 }
 
 template <class T>
@@ -511,13 +497,7 @@ FragmentLinkedList<T>::Iterator::Iterator(FragmentLinkedList<T> *pList, int frag
     }
     else
     {
-        if (fragmentIndex < pList->nFragPtr() - 1)
-            this->pNode = pList->fragmentPointers[fragmentIndex + 1];
-        else
-        {
-            // End of list
-            this->pNode = NULL;
-        }
+        this->pNode = (fragmentIndex < pList->nFragPtr() - 1) ? pList->fragmentPointers[fragmentIndex + 1] : NULL;
     }
 }
 
@@ -574,7 +554,6 @@ void        FragmentLinkedList<T>::Iterator::set(const T& element)
 template <class T>
 typename FragmentLinkedList<T>::Iterator&   FragmentLinkedList<T>::Iterator::operator++()           // Prefix
 {
-    // while (this->pNode->next != nullptr)
     this->pNode = this->pNode->next;
     return *this;
 }
@@ -624,34 +603,36 @@ int main()
     // fList.printHeadOfFragments();
 
     // fList.clear();
-    for (int i = 0; i < 21; i++)
-        if (i % 2)
-        {
-            fList.add(i - 1, i * i);
-        }    
-        else
-        {
-            fList.add(i);
-        }
+    // for (int i = 0; i < 21; i++)
+    //     if (i % 2)
+    //     {
+    //         fList.add(i - 1, i * i);
+    //     }    
+    //     else
+    //     {
+    //         fList.add(i);
+    //     }
     
-    cout << "Size is -- " << fList.size() << " -- and list is " << fList.toString() << '\n';
-    fList.printHeadOfFragments();
+    // cout << "Size is -- " << fList.size() << " -- and list is " << fList.toString() << '\n';
+    // fList.printHeadOfFragments();
 
-    if (fList.contains(169)) fList.removeItem(169);
-    cout << "Size is -- " << fList.size() << " -- and list is " << fList.toString() << '\n';
-    fList.printHeadOfFragments();
+    // if (fList.contains(169)) fList.removeItem(169);
+    // cout << "Size is -- " << fList.size() << " -- and list is " << fList.toString() << '\n';
+    // fList.printHeadOfFragments();
 
 
 
-    fList.clear();
-    cout << "Cleared: " << fList.toString();
+    // fList.clear();
+    // cout << "Cleared: " << fList.toString();
 
     // for(FragmentLinkedList<int>::Iterator it = fList.begin(); it != fList.end(6); ++it)
     // {
     //     cout << *it << " ";
     // }
 
-    cout << endl;
+    FragmentLinkedList<int> list;
+    cout << list.size();
+
 
     return 0;
 }
