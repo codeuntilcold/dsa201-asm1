@@ -2,6 +2,7 @@
 #include <string>
 #include <iostream>
 #include <type_traits>
+#include <cassert>
 using namespace std;
 
 #ifndef ILIST_H
@@ -484,8 +485,17 @@ template <class T>
 FragmentLinkedList<T>::Iterator::Iterator(FragmentLinkedList<T> *pList, bool begin)
 {
     this->pList = pList;
-    this->pNode = (begin) ? pList->fragmentPointers[0] : NULL;
-    this->index = (begin) ? 0 : pList->size();
+    if (begin)
+    {
+        this->pNode = (pList) ? pList->fragmentPointers[0] : NULL;
+        this->index = (pList) ? 0 : -1;
+    }
+    else
+    {
+        this->pNode = NULL;
+        this->index = (pList) ? pList->count : 0;
+    }
+    
 }
 
 template <class T>
@@ -540,7 +550,10 @@ bool        FragmentLinkedList<T>::Iterator::operator!=(const Iterator &iterator
 template <class T>
 void        FragmentLinkedList<T>::Iterator::remove()
 {
-    if (!pNode) { return; }
+    if (!pNode) 
+    { 
+        throw out_of_range("Segmentation fault!"); 
+    }
 
     Node* p = pList->fragmentPointers[0];
     int idx = 0;
@@ -583,6 +596,11 @@ typename FragmentLinkedList<T>::Iterator&   FragmentLinkedList<T>::Iterator::ope
         pNode = pList->fragmentPointers[0];
         this->index++;
     }
+    else
+    {
+        throw out_of_range("Segmentation fault!");
+    }
+    
     return *this;
 }
 
@@ -599,17 +617,14 @@ typename FragmentLinkedList<T>::Iterator    FragmentLinkedList<T>::Iterator::ope
 
 int main()
 {
-    FragmentLinkedList<int> fList(5);
+    // FragmentLinkedList<int> fList(5);
 
     // for (int i = 0; i < 5; i++)
     //     fList.add(i);
-
     // cout << "Size is -- " << fList.size() << " -- and list is " << fList.toString() << '\n';
     // fList.printHeadOfFragments();
-    
     // for (int i = 0; i < 5; i++)
     //     fList.add(2 * i, i * i);
-    
     // fList.add(0, 15);
     // fList.add(1, 16);
     // fList.add(3, 18);
@@ -618,36 +633,44 @@ int main()
     // fList.add(10, 300);
     // cout << "Size is -- " << fList.size() << " -- and list is " << fList.toString() << '\n';
     // fList.printHeadOfFragments();
-    
     // cout << "Remove at:\t\t" << fList.removeAt(0) << '\n';
     // cout << "Remove item:\t\t" << fList.removeItem(0) << '\n';
     // cout << "Size is -- " << fList.size() << " -- and list is " << fList.toString() << '\n';
     // fList.printHeadOfFragments();
-    
     // cout << "Index of item:\t\t" << fList.indexOf(22) << '\n';
     // cout << "Remove item:\t\t" << fList.removeItem(22) << '\n';
     // cout << "Remove at:\t\t" << fList.removeAt(fList.size() - 1) << '\n';
     // cout << "Size is -- " << fList.size() << " -- and list is " << fList.toString() << '\n';
     // fList.printHeadOfFragments();
-
     // fList.clear();
-
-    for (int i = 0; i < 17; i++)
-        fList.add(i);
-    cout << "Size is -- " << fList.size() << " -- and list is " << fList.toString() << '\n';
-    fList.printHeadOfFragments();
-
-    cout << '\n';
-
-    for (FragmentLinkedList<int>::Iterator it = fList.begin(); it != fList.end(); ++it)
-    {
-        if (*it % 3 == 0) it.remove();
-        cout << "Size is -- " << fList.size() << " -- and list is " << fList.toString() << '\n';
-        fList.printHeadOfFragments();
-    }
-    cout << '\n';
+    // for (int i = 0; i < 17; i++)
+    //     fList.add(i);
+    // cout << "Size is -- " << fList.size() << " -- and list is " << fList.toString() << '\n';
+    // fList.printHeadOfFragments();
+    // cout << '\n';
+    // for (FragmentLinkedList<int>::Iterator it = fList.begin(); it != fList.end(); ++it)
+    // {
+    //     if (*it % 3 == 0) it.remove();
+    //     cout << "Size is -- " << fList.size() << " -- and list is " << fList.toString() << '\n';
+    //     fList.printHeadOfFragments();
+    // }
+    // cout << '\n';
     // FragmentLinkedList<int> list;
     // cout << list.toString();
 
+    FragmentLinkedList<int> list;
+
+int size = 10;
+for(int idx=0; idx < size; idx++){
+    list.add(idx);
+}
+
+FragmentLinkedList<int>::Iterator it;
+int v = 0;
+for(it = list.begin(); it != list.end(); it++){
+    int value = *it;
+    assert( value == v );
+    v += 1;
+}
     return 0;
 }
